@@ -33,7 +33,7 @@ mysqlclient==1.4.2.post1
 numpy==1.17.3
 odfpy==1.4.0
 openpyxl==2.6.2
-Pillow==6.0.0
+Pillow==6.2.0
 pylint==2.3.1
 pytz==2019.1
 PyYAML==5.1
