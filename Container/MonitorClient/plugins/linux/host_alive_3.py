@@ -1,0 +1,14 @@
+import subprocess
+
+def monitor(frist_invoke=1):
+    value_dic = {}
+    shell_command = 'uptime'
+    result = subprocess.Popen(shell_command,shell=True,stdout=subprocess.PIPE).stdout.read()
+
+    value_dic = {
+        'uptime':result,
+        'status':0
+    }
+    return value_dic
+
+print(monitor())
