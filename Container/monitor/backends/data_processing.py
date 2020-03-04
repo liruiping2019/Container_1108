@@ -38,6 +38,11 @@ class DataHandler(object):
             if self.global_monitor_dic:
                 for h,config_dic in self.global_monitor_dic.items():
                     print('handling host: %s' % h)
+                    if config_dic['services'] == {}:
+                        print('字典为空，主机未上线......')
+                        h.status = 3
+                        h.save()
+                        continue
                     for service_id,val in config_dic['services'].items():#循环所有要监控的服务
                         service_obj,last_monitor_time = val
                         if time.time() - last_monitor_time >= service_obj.interval:
@@ -50,7 +55,7 @@ class DataHandler(object):
                             print("service [%s] next monitor time is %s" % (service_obj.name,next_monitor_time))
 
                     if time.time() - self.global_monitor_dic[h]['status_last_check'] >10:
-                        trigger_redis_key = "host_%s_trigger" % (h.id)
+                        trigger_redis_key = "host_%s_trigger_*" % (h.id)
                         trigger_keys = self.redis.keys(trigger_redis_key)
                         if len(trigger_keys) == 0:  #即没有trigger被触发
                             h.status = 1
@@ -113,7 +118,7 @@ class DataHandler(object):
         '''
         service_redis_key = "StatusData_%s_%s_latest" % (host_obj.id,service_obj.name)
         latest_data_point = self.redis.lrange(service_redis_key,-1,-1)
-        if latest_data_point:
+        if latest_data_point:           #成立则说明redis数据库中存在该服务的数据
             latest_data_point = json.loads(latest_data_point[0].decode())
             print(">>>>>>latest data point %s" % latest_data_point)
             latest_service_data,last_report_time = latest_data_point
@@ -122,20 +127,24 @@ class DataHandler(object):
                 no_data_secs = time.time() - last_report_time
                 msg = '''Some thing must be wrong with client [%s] , because haven't receive data of service [%s] \
                 for [%s]s (interval is [%s])''' % (host_obj.ip_addr,service_obj.name,no_data_secs,monitor_interval)
-                self.trigger_notifier(host_obj=host_obj,trigger_id=None,positive_expressions=None,msg=msg)
+                self.trigger_notifier(host_obj=host_obj,trigger_id=None,positive_expressions=None,redis_obj=None,msg=msg)
 
                 print(">>>>>>%s" % msg)
-                if service_obj.name == 'uptime':    #监控主机存活的服务
+                if service_obj.name == 'LinuxAlive':    #监控主机存活的服务
                     host_obj.status = 3
                     host_obj.save()
                 else:
-                    host_obj.status = 5
+                    host_obj.status = 1
                     host_obj.save()
+            else:
+                print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                host_obj.status = 1
+                host_obj.save()
 
         else:
             print(">>>>>>no data for service [%s] host[%s] at all" % (service_obj.name,host_obj.name))
             msg = "no data for service [%s] host[%s] at all..." % (service_obj.name,host_obj.name)
-            self.trigger_notifier(host_obj=host_obj,trigger_id=None,positive_expressions=None,msg=msg)
+            self.trigger_notifier(host_obj=host_obj,trigger_id=None,positive_expressions=None,redis_obj=None,msg=msg)
             host_obj.status = 5
             host_obj.save()
 
@@ -165,9 +174,9 @@ class DataHandler(object):
             print("whole trigger res:", trigger_res)
             if trigger_res: #触发报警
                 print("##############trigger alert:",trigger_obj.severity,trigger_res)
-                self.trigger_notifier(host_obj,trigger_obj.id,positive_expressions,msg=trigger_obj.name)
+                self.trigger_notifier(host_obj,trigger_obj.id,positive_expressions,self.redis,msg=trigger_obj.name)
 
-    def trigger_notifier(self,host_obj,trigger_id,positive_expressions,redis_obj=None,msg=None):
+    def trigger_notifier(self,host_obj,trigger_id,positive_expressions,redis_obj,msg=None):
         if redis_obj:   #从外部调用时才用的到，为了避免重复调用redis连接
             self.redis = redis_obj
         print(">>>>>>going to send alert msg...............")

@@ -123,7 +123,7 @@ class GroupStatusSerializer(object):
 
         print(json.dumps(data_set))
 
-class StatusSerializer(object):
+class StatusSerializer(object):                     #将此处的
     def __init__(self,request,redis):
         self.request = request
         self.redis = redis
@@ -167,7 +167,7 @@ class StatusSerializer(object):
             data['last_update'] = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(uptime[1]))
 
         #for triggers
-        data['triggers'] = self.get_triggers(host_obj)
+        data['triggers'] = self.get_triggers(host_obj)              #调用get_triggers方法
 
         return  data
 
@@ -178,14 +178,14 @@ class StatusSerializer(object):
         :return:
         '''
 
-        redis_key = 'StatusData_%s_uptime_latest' % host_obj.id
+        redis_key = 'StatusData_%s_LinuxAlive_latest' % host_obj.id
         last_data_point = self.redis.lrange(redis_key,-1,-1)
         if last_data_point:
             #print('----last updtime point:',last_data_point[0])
             last_data_point,last_update = json.loads(last_data_point[0])
             return last_data_point,last_update
 
-    def get_triggers(self,host_obj):
+    def get_triggers(self,host_obj):            #将触发的trigger的详细信息存入到trigger_dic对应等级中去
         trigger_keys = self.redis.keys("host_%s_trigger_*" % host_obj.id)
         #print('trigger keys:',trigger_keys)
         ''' (1,'Information'),
@@ -209,7 +209,7 @@ class StatusSerializer(object):
             else:
                 trigger_id = trigger_key.decode().split('_')[-1]
                 trigger_obj = models.Trigger.objects.get(id=trigger_id)
-                trigger_dic[trigger_obj.severity].append(json.loads(trigger_data.decode()))
+                trigger_dic[trigger_obj.severity].append(json.loads(trigger_data.decode()))     #trigger_obj.serverity代表当前trigger对象的告警级别，与trigger_dic中的等级是对应的
 
         #print('triiger data',trigger_dic)
         return trigger_dic

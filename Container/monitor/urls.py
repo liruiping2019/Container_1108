@@ -13,7 +13,7 @@ urlpatterns = [
     re_path('^host_groups/$',views.host_groups ,name='host_groups'),
     re_path('hosts/(\d+)/$',views.host_detail ,name='host_detail'),
     #url(r'graph/$',views.graph ,name='get_graph'),
-    re_path('trigger_list/$',views.trigger_list ,name='trigger_list'),
+    re_path('^trigger_list/(\d+)/$',views.trigger_list ,name='trigger_list'),
     #url(r'client/service/report/$',views.service_data_report )
 
 ]

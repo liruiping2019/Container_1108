@@ -4,6 +4,7 @@ from django.shortcuts import render
 #_*_coding:utf8_*_
 from django.shortcuts import render,HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.core import serializers
 
 from  Container import settings
 import json,time
@@ -103,8 +104,8 @@ def hosts_status(request):
     # #将成功登录的key值保存在列表中
     # au_list.append(authkey)
 
-    hosts_data_serializer = serializer.StatusSerializer(request,REDIS_OBJ)
-    hosts_data = hosts_data_serializer.by_hosts()
+    hosts_data_serializer = serializer.StatusSerializer(request,REDIS_OBJ)  #返回对象
+    hosts_data = hosts_data_serializer.by_hosts()       #调用对象中的by_hosts方法，返回host_data_list，即主机状态信息
 
     return HttpResponse(json.dumps(hosts_data))
 
@@ -187,15 +188,33 @@ def triggers(request):
 
     return render(request,'monitor/triggers.html')
 
-def trigger_list(request):
-
-    host_id = request.GET.get("by_host_id")
-
+def triggers_list(request,host_id):          #返回报警事件列表json
     host_obj = models.Host.objects.get(id=host_id)
 
     alert_list = host_obj.eventlog_set.all().order_by('-date')
-    return render(request,'monitor/trigger_list.html',locals())
 
+    trigger_date = []
+    for alert in alert_list:
+        temp = {}
+        temp['event_type'] = alert.get_event_type_display()
+        temp['trigger'] = "service:"+alert.trigger.name+",severity:"+alert.trigger.get_severity_display()
+        print(type(alert.trigger))
+        temp['log'] = alert.log
+        temp['date'] = alert.date
+        trigger_date.append(temp)
+
+    #trigger_date = serializers.serialize("json", alert_list)
+    #return render(request,'monitor/trigger_list.html',locals())
+    return HttpResponse(trigger_date)
+
+def trigger_list(request,host_id):          #前端展示
+    #host_id = request.GET.get("by_host_id")
+    host_obj = models.Host.objects.get(id=host_id)
+
+    alert_list = host_obj.eventlog_set.all().order_by('-date')
+
+    return render(request,'monitor/trigger_list.html',locals())
+    #return HttpResponse(service_triggers)
 
 def host_groups(request):
 
