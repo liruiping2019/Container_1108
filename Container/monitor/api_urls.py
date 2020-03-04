@@ -8,5 +8,5 @@ urlpatterns = [
     re_path('hosts/status/$', views.hosts_status, name='get_hosts_status'),
     re_path('groups/status/$', views.hostgroups_status, name='get_hostgroups_status'),
     re_path('graphs/$', views.graphs_generator, name='get_graphs'),
-    re_path('triggers_list/(\d+)/$',views.triggers_list,name='get_trigger_list')
+    re_path('triggers_list/$',views.triggers_list,name='get_trigger_list')
 ]

@@ -188,7 +188,13 @@ def triggers(request):
 
     return render(request,'monitor/triggers.html')
 
-def triggers_list(request,host_id):          #返回报警事件列表json
+def triggers_list(request):          #返回报警事件列表json
+    get_host_id = serializer.StatusSerializer(request,REDIS_OBJ)        #用于host_id
+    host_list = get_host_id.by_hosts()
+    host_id = 0
+    for host_dic in host_list:
+        if host_dic['uptime'] != '':
+            host_id = host_dic['id']
     host_obj = models.Host.objects.get(id=host_id)
 
     alert_list = host_obj.eventlog_set.all().order_by('-date')
@@ -198,7 +204,7 @@ def triggers_list(request,host_id):          #返回报警事件列表json
         temp = {}
         temp['event_type'] = alert.get_event_type_display()
         temp['trigger'] = "service:"+alert.trigger.name+",severity:"+alert.trigger.get_severity_display()
-        print(type(alert.trigger))
+        #print(type(alert.trigger))
         temp['log'] = alert.log
         temp['date'] = alert.date
         trigger_date.append(temp)
@@ -207,10 +213,15 @@ def triggers_list(request,host_id):          #返回报警事件列表json
     #return render(request,'monitor/trigger_list.html',locals())
     return HttpResponse(trigger_date)
 
-def trigger_list(request,host_id):          #前端展示
+def trigger_list(request):          #前端展示
     #host_id = request.GET.get("by_host_id")
+    get_host_id = serializer.StatusSerializer(request,REDIS_OBJ)        #用于host_id
+    host_list = get_host_id.by_hosts()
+    host_id = 0
+    for host_dic in host_list:
+        if host_dic['uptime'] != '':
+            host_id = host_dic['id']
     host_obj = models.Host.objects.get(id=host_id)
-
     alert_list = host_obj.eventlog_set.all().order_by('-date')
 
     return render(request,'monitor/trigger_list.html',locals())
