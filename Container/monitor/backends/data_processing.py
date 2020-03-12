@@ -137,7 +137,7 @@ class DataHandler(object):
                     host_obj.status = 1
                     host_obj.save()
             else:
-                print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+                #print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
                 host_obj.status = 1
                 host_obj.save()
 

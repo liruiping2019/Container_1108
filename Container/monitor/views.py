@@ -6,17 +6,21 @@ from django.shortcuts import render,HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core import serializers
 
-from  Container import settings
 import json,time
 # Create your views here.
 from  monitor.serializer import  ClientHandler,get_host_triggers
 import json
-from monitor.backends import redis_conn
 from monitor.backends import data_optimization
 from monitor import models
 from monitor.backends import data_processing
 from monitor import serializer
 from monitor import graphs
+
+from monitor.backends import redis_conn
+from  Container import settings
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 import hashlib
 
@@ -79,36 +83,50 @@ def host_detail(request,host_id):
 #
 #     return render(request,'host_detail.html', {'host_obj':host_obj,'monitored_services':monitored_services})
 
-au_list = []
-def hosts_status(request):
-    # #请求方与响应方共有的key
-    # au_key = "aaabbb"
-    # client_au_time = request.META['HTTP_AUTIME']
-    #
-    # server_au_key = "%s|%s" % (au_key,client_au_time)
-    # m = hashlib.md5()
-    # m.update(bytes(server_au_key,encoding='utf-8'))
-    # authkey = m.hexdigest()
-    #
-    # client_au_key = request.META['HTTP_AUTHKEY']
-    # #验证一
-    # server_time = time.time()
-    # if server_time - 5 > float(client_au_time):
-    #     return HttpResponse("超时！")
-    # #验证二
-    # if authkey != client_au_key:
-    #     return HttpResponse("验证失败！")
-    # #验证三
-    # if authkey in au_list:
-    #     return HttpResponse("验证码已过期！")
-    # #将成功登录的key值保存在列表中
-    # au_list.append(authkey)
+# au_list = []
+# def hosts_status(request):
+#     #请求方与响应方共有的key
+#     # au_key = "aaabbb"
+#     # client_au_time = request.META['HTTP_AUTIME']
+#     #
+#     # server_au_key = "%s|%s" % (au_key,client_au_time)
+#     # m = hashlib.md5()
+#     # m.update(bytes(server_au_key,encoding='utf-8'))
+#     # authkey = m.hexdigest()
+#     #
+#     # client_au_key = request.META['HTTP_AUTHKEY']
+#     # #验证一
+#     # server_time = time.time()
+#     # if server_time - 5 > float(client_au_time):
+#     #     return HttpResponse("超时！")
+#     # #验证二
+#     # if authkey != client_au_key:
+#     #     return HttpResponse("验证失败！")
+#     # #验证三
+#     # if authkey in au_list:
+#     #     return HttpResponse("验证码已过期！")
+#     # #将成功登录的key值保存在列表中
+#     # au_list.append(authkey)
+#
+#     hosts_data_serializer = serializer.StatusSerializer(request,REDIS_OBJ)  #返回对象
+#     hosts_data = hosts_data_serializer.by_hosts()       #调用对象中的by_hosts方法，返回host_data_list，即主机状态信息
+#
+#     return HttpResponse(json.dumps(hosts_data),content_type="application/json")
+#     return HttpResponse(hosts_data, content_type="application/json")
 
-    hosts_data_serializer = serializer.StatusSerializer(request,REDIS_OBJ)  #返回对象
-    hosts_data = hosts_data_serializer.by_hosts()       #调用对象中的by_hosts方法，返回host_data_list，即主机状态信息
+class Status(APIView):
+    def get(self,request):
+        host_obj = models.Host.objects.all()        #对象只能是可迭代的，这个model对象会与传递给序列化类
+        hs = serializer.StatusSerializer(host_obj,many=True,context={'redis_obj':REDIS_OBJ})        #通过context传递额外参数给序列化类
+        data = hs.data
+        return Response(data)
 
-    return HttpResponse(json.dumps(hosts_data))
-
+class Test(APIView):
+    def get(self,request):
+        test_obj = models.Host.objects.all()
+        ts = serializer.TestSerializer(test_obj,many=True)
+        data = ts.data
+        return Response(data)
 
 def hostgroups_status(request):
     group_serializer = serializer.GroupStatusSerializer(request,REDIS_OBJ)
@@ -163,13 +181,20 @@ def hostgroups_status(request):
 #
 #     return HttpResponse(json.dumps("---report success---"))
 
+class Graphs_generator(APIView):
+    def get(self,request):
+        host_id = request.GET.get('host_id')
+        host_obj = models.Host.objects.filter(id=host_id)
+        hs = graphs.GraphGenerator2(host_obj,many=True,context={'request':request,'redis_obj':REDIS_OBJ})
+        data = hs.data
+        return Response(data)
 
-def graphs_generator(request):
-
-    graphs_generator = graphs.GraphGenerator2(request,REDIS_OBJ)
-    graphs_data = graphs_generator.get_host_graph()
-    print("graphs_data",graphs_data)
-    return HttpResponse(json.dumps(graphs_data))
+# def graphs_generator(request):
+#
+#     graphs_generator = graphs.GraphGenerator2(request,REDIS_OBJ)
+#     graphs_data = graphs_generator.get_host_graph()
+#     print("graphs_data",graphs_data)
+#     return HttpResponse(json.dumps(graphs_data),content_type="application/json")
 
 # def graph_bak(request):
 #
@@ -188,39 +213,22 @@ def triggers(request):
 
     return render(request,'monitor/triggers.html')
 
-def triggers_list(request):          #返回报警事件列表json
-    get_host_id = serializer.StatusSerializer(request,REDIS_OBJ)        #用于host_id
-    host_list = get_host_id.by_hosts()
-    host_id = 0
-    for host_dic in host_list:
-        if host_dic['uptime'] != '':
-            host_id = host_dic['id']
-    host_obj = models.Host.objects.get(id=host_id)
-
-    alert_list = host_obj.eventlog_set.all().order_by('-date')
-
-    trigger_date = []
-    for alert in alert_list:
-        temp = {}
-        temp['event_type'] = alert.get_event_type_display()
-        temp['trigger'] = "service:"+alert.trigger.name+",severity:"+alert.trigger.get_severity_display()
-        #print(type(alert.trigger))
-        temp['log'] = alert.log
-        temp['date'] = alert.date
-        trigger_date.append(temp)
-
-    #trigger_date = serializers.serialize("json", alert_list)
-    #return render(request,'monitor/trigger_list.html',locals())
-    return HttpResponse(trigger_date)
+class Triggers_list(APIView):
+    def get(self,request):
+        host_id = request.GET.get('host_id')
+        host_obj = models.Host.objects.filter(id=host_id)       #返回指定对象，filter（如果用get的话，返回的对象就不可迭代了）
+        ho = serializer.EventlogSerializer(host_obj,many=True,context={'host_id':host_id})
+        data = ho.data
+        return Response(data)
 
 def trigger_list(request):          #前端展示
-    #host_id = request.GET.get("by_host_id")
-    get_host_id = serializer.StatusSerializer(request,REDIS_OBJ)        #用于host_id
-    host_list = get_host_id.by_hosts()
-    host_id = 0
-    for host_dic in host_list:
-        if host_dic['uptime'] != '':
-            host_id = host_dic['id']
+    host_id = request.GET.get("by_host_id")
+    # get_host_id = serializer.StatusSerializer(request,REDIS_OBJ)        #用于host_id
+    # host_list = get_host_id.by_hosts()
+    # host_id = 0
+    # for host_dic in host_list:
+    #     if host_dic['uptime'] != '':
+    #         host_id = host_dic['id']
     host_obj = models.Host.objects.get(id=host_id)
     alert_list = host_obj.eventlog_set.all().order_by('-date')
 

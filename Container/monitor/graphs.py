@@ -1,26 +1,43 @@
 #_*_coding:utf-8_*_
-__author__ = 'Alex Li'
+#专门处理用于详细图表生成的数据
 
 from  monitor import models
 import json
-from Container import  settings
+from Container import settings
+from rest_framework import serializers
 
-class GraphGenerator2(object):
+class GraphGenerator2(serializers.ModelSerializer):
     '''
     产生流量图
     '''
-    def __init__(self,request,redis_obj):
-        self.request = request
-        self.redis = redis_obj
-        self.host_id = self.request.GET.get('host_id')
-        self.time_range = self.request.GET.get('time_range')
+    data = serializers.SerializerMethodField()
+    class Meta:
+        model = models.Host
+        fields = ('id', 'data')
+
+    def get_request(self):
+        request = self.context.get("request")
+        return request
+    def get_redis_obj(self):
+        redis_obj = self.context.get("redis_obj")
+        return redis_obj
+    def get_host_id(self):
+        host_id = self.get_request().GET.get('host_id')
+        return host_id
+    def get_time_range(self):
+        time_range = self.get_request().GET.get('time_range')
+        return time_range
+
+    def get_data(self,obj):
+        data = self.get_host_graph()
+        return data
 
     def get_host_graph(self):
         '''
         生成此主机关联的所有图
         :return:
         '''
-        host_obj = models.Host.objects.get(id=self.host_id)
+        host_obj = models.Host.objects.get(id=self.get_host_id())
         service_data_dic = {}
         template_list = list(host_obj.templates.select_related())
         for g in host_obj.host_groups.select_related():
@@ -50,13 +67,67 @@ class GraphGenerator2(object):
         #开始取数据
         for service_id,val_dic in service_data_dic.items():
             #if val_dic['has_sub_service'] == False:
-            service_redis_key = "StatusData_%s_%s_%s" %(self.host_id,val_dic['name'],self.time_range)
+            service_redis_key = "StatusData_%s_%s_%s" %(self.get_host_id(),val_dic['name'],self.get_time_range())
             print('service_redis_key',service_redis_key)
-            service_raw_data = self.redis.lrange(service_redis_key,0,-1)
+            redis_obj = self.get_redis_obj()
+            service_raw_data = redis_obj.lrange(service_redis_key,0,-1)
             service_raw_data =  [item.decode() for item in service_raw_data]
             service_data_dic[service_id]['raw_data'] = service_raw_data
 
         return service_data_dic
+
+# class GraphGenerator2(object):
+#     '''
+#     产生流量图
+#     '''
+#     def __init__(self,request,redis_obj):
+#         self.request = request
+#         self.redis = redis_obj
+#         self.host_id = self.request.GET.get('host_id')
+#         self.time_range = self.request.GET.get('time_range')
+#
+#     def get_host_graph(self):
+#         '''
+#         生成此主机关联的所有图
+#         :return:
+#         '''
+#         host_obj = models.Host.objects.get(id=self.host_id)
+#         service_data_dic = {}
+#         template_list = list(host_obj.templates.select_related())
+#         for g in host_obj.host_groups.select_related():
+#             template_list.extend(list(g.templates.select_related()))
+#         template_list = set(template_list)
+#         for template in template_list:
+#             for service in template.services.select_related():
+#                 service_data_dic[service.id] = {
+#                     'name':service.name,
+#                     'index_data':{},
+#                     'has_sub_service': service.has_sub_service,
+#                     'raw_data':[],
+#                     'items': [item.key for item in service.items.select_related() ]
+#                 }
+#                 '''if not service.has_sub_service:
+#                     for index in service.items.select_related():
+#                         service_data_dic[service.id]['index_data'][index.key] = {
+#                             'id': index.id,
+#                             'name':index.name,
+#                             'data':[]
+#                         }
+#                 #else: #like nic service
+#                 '''
+#
+#         print(service_data_dic)
+#         #service_data_dic
+#         #开始取数据
+#         for service_id,val_dic in service_data_dic.items():
+#             #if val_dic['has_sub_service'] == False:
+#             service_redis_key = "StatusData_%s_%s_%s" %(self.host_id,val_dic['name'],self.time_range)
+#             print('service_redis_key',service_redis_key)
+#             service_raw_data = self.redis.lrange(service_redis_key,0,-1)
+#             service_raw_data =  [item.decode() for item in service_raw_data]
+#             service_data_dic[service_id]['raw_data'] = service_raw_data
+#
+#         return service_data_dic
 
 class GraphGenerator(object):
     '''
